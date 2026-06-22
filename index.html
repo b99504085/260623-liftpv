@@ -132,6 +132,37 @@
   .tl-title { font-weight: 700; font-size: 14px; }
   .tl-note  { font-size: 13px; color: #555; margin-top: 2px; }
   .tl-sub   { font-size: 12px; color: #888; margin-top: 3px; font-style: italic; }
+  .ticket-row {
+    display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;
+  }
+  .ticket-link,
+  .db-refresh-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+    border-radius: 999px; border: 1px solid #c5cae9; background: #fff;
+    color: #1a237e; font-family: inherit; font-size: 12px; font-weight: 700;
+    line-height: 1.2; text-decoration: none; padding: 6px 11px; cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+  }
+  .ticket-link:hover,
+  .db-refresh-btn:hover { background: #eef2ff; border-color: #3949ab; }
+  .db-status-box {
+    margin-top: 9px; padding: 10px 12px; border: 1px solid #d8dcef;
+    border-radius: 8px; background: #fbfcff;
+  }
+  .db-status-head {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  }
+  .db-status-pill {
+    display: inline-flex; align-items: center; border-radius: 999px;
+    padding: 4px 10px; font-size: 12px; font-weight: 700;
+    color: #5f6368; background: #f1f3f4;
+  }
+  .db-status-pill.on-time { color: #1b5e20; background: #e8f5e9; }
+  .db-status-pill.delayed { color: #b71c1c; background: #ffebee; }
+  .db-status-pill.loading { color: #1a237e; background: #e8eaf6; }
+  .db-status-pill.error { color: #5d4037; background: #fff3e0; }
+  .db-status-detail { color: #555; font-size: 12px; margin-top: 7px; }
+  .db-status-detail a { color: #1a237e; font-weight: 700; }
 
   /* ── Photo gallery ── */
   .photo-grid {
@@ -378,8 +409,21 @@
 </li>
 <li class="highlight">
 <span class="tl-time" contenteditable="false" data-edit-key="tl-time-5">11:34 出發</span>
-<div class="tl-title" contenteditable="false" data-edit-key="tl-title-5">🚆 ICE 123：Arnhem Centraal → Frankfurt (Main) Hbf</div>
-<div class="tl-note" contenteditable="false" data-edit-key="tl-note-5">2h 39m，6 站，約 230 km ｜ ⚠️ 出發前確認德鐵即時狀態</div>
+<div class="tl-title" contenteditable="false" data-edit-key="tl-title-5">🚆 ICE 123：Arnhem Centraal → Frankfurt(M) Flughafen Fernbf</div>
+<div class="tl-note" contenteditable="false" data-edit-key="tl-note-5">
+  2h 39m，6 站，約 230 km ｜ ⚠️ 出發前確認德鐵即時狀態
+  <div class="ticket-row" aria-label="火車票連結">
+    <a class="ticket-link" href="train-ticket-arnhem-frankfurt-1.pdf" target="_blank" rel="noopener">🎫 火車票</a>
+    <a class="ticket-link" href="train-ticket-arnhem-frankfurt-2.pdf" target="_blank" rel="noopener">💺 座位資訊</a>
+  </div>
+  <div class="db-status-box" aria-live="polite">
+    <div class="db-status-head">
+      <span id="dbStatusPill" class="db-status-pill">德鐵狀態尚未更新</span>
+      <button class="db-refresh-btn" type="button" onclick="refreshDbStatus()">↻ 刷新德鐵狀態</button>
+    </div>
+    <div id="dbStatusDetail" class="db-status-detail">出發前點擊刷新，可確認 ICE 123 是否準時或 delay。</div>
+  </div>
+</div>
 </li>
 <li>
 <span class="tl-time" contenteditable="false" data-edit-key="tl-time-6">≈ 14:13</span>
@@ -733,9 +777,11 @@ function showTab(id, btn) {
 let editMode = false;
 const deletedCards = {};
 const STORAGE_KEY = 'liftpv_briefing_v1';
+const SITE_CONTENT_VERSION = 2;
+const PROTECTED_CONTENT_KEYS = new Set(['tl-title-5', 'tl-note-5']);
 
 function saveEdits() {
-  const data = { fields: {}, deleted: [], addedCards: {} };
+  const data = { version: SITE_CONTENT_VERSION, fields: {}, deleted: [], addedCards: {} };
 
   // Save elements with data-edit-key (timeline, history, talking points, etc.)
   document.querySelectorAll('[data-edit-key]').forEach(el => {
@@ -774,8 +820,11 @@ function loadEdits() {
     if (data.fields) {
       // Restore elements with data-edit-key
       document.querySelectorAll('[data-edit-key]').forEach(el => {
-        if (data.fields[el.dataset.editKey] !== undefined)
-          el.innerHTML = data.fields[el.dataset.editKey];
+        const key = el.dataset.editKey;
+        const hasCurrentContent = (data.version || 1) >= SITE_CONTENT_VERSION;
+        if (!hasCurrentContent && PROTECTED_CONTENT_KEYS.has(key)) return;
+        if (data.fields[key] !== undefined)
+          el.innerHTML = data.fields[key];
       });
       // Restore person card fields
       document.querySelectorAll('[contenteditable]:not([data-edit-key])').forEach(el => {
@@ -937,6 +986,139 @@ document.querySelectorAll('.person-photo').forEach(img => {
   });
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+// ─── Deutsche Bahn live status ───
+const DB_STATUS_CONFIG = {
+  trainName: 'ICE 123',
+  from: '8400058',
+  to: '8070003',
+  departure: '2026-06-23T11:20:00+02:00',
+  apiBases: [
+    'https://v6.db.transport.rest',
+    'https://v5.db.transport.rest',
+    'https://v5.db.api.bahn.guru'
+  ],
+  fallbackUrl: 'https://int.bahn.de/en'
+};
+
+function setDbStatus(state, label, detail, includeFallbackLink = false) {
+  const pill = document.getElementById('dbStatusPill');
+  const detailEl = document.getElementById('dbStatusDetail');
+  if (!pill || !detailEl) return;
+
+  pill.className = `db-status-pill ${state}`;
+  pill.textContent = label;
+  detailEl.textContent = detail;
+
+  if (includeFallbackLink) {
+    const link = document.createElement('a');
+    link.href = DB_STATUS_CONFIG.fallbackUrl;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = '開啟 bahn.de';
+    detailEl.append(' ');
+    detailEl.appendChild(link);
+  }
+}
+
+function formatTime(value) {
+  if (!value) return '';
+  return new Intl.DateTimeFormat('zh-TW', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Europe/Berlin'
+  }).format(new Date(value));
+}
+
+function getDelaySeconds(leg) {
+  if (typeof leg.departureDelay === 'number') return leg.departureDelay;
+  if (typeof leg.arrivalDelay === 'number') return leg.arrivalDelay;
+  const planned = leg.plannedDeparture || leg.scheduledDeparture;
+  const actual = leg.departure;
+  if (planned && actual) return Math.round((new Date(actual) - new Date(planned)) / 1000);
+  return null;
+}
+
+function findIce123Leg(journeys) {
+  for (const journey of journeys || []) {
+    for (const leg of journey.legs || []) {
+      const lineName = leg.line?.name || leg.line?.fahrtNr || '';
+      const productName = leg.line?.productName || '';
+      const isIce123 = /ICE\s*123\b/i.test(`${lineName} ${productName}`);
+      if (isIce123) return leg;
+    }
+  }
+  return null;
+}
+
+async function fetchJsonWithTimeout(url, timeoutMs = 9000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { signal: controller.signal, headers: { accept: 'application/json' } });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function refreshDbStatus() {
+  setDbStatus('loading', '查詢德鐵狀態中...', '正在向 Deutsche Bahn 即時資料來源查詢 ICE 123。');
+
+  const params = new URLSearchParams({
+    from: DB_STATUS_CONFIG.from,
+    to: DB_STATUS_CONFIG.to,
+    departure: DB_STATUS_CONFIG.departure,
+    results: '8',
+    transfers: '0',
+    stopovers: 'true',
+    remarks: 'true'
+  });
+
+  for (const base of DB_STATUS_CONFIG.apiBases) {
+    try {
+      const data = await fetchJsonWithTimeout(`${base}/journeys?${params.toString()}`);
+      const leg = findIce123Leg(data.journeys);
+      if (!leg) continue;
+
+      const delaySeconds = getDelaySeconds(leg);
+      const plannedTime = formatTime(leg.plannedDeparture || leg.scheduledDeparture || '2026-06-23T11:34:00+02:00');
+      const actualTime = formatTime(leg.departure);
+      const updatedAt = new Intl.DateTimeFormat('zh-TW', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+        timeZone: 'Europe/Amsterdam'
+      }).format(new Date());
+
+      if (leg.cancelled) {
+        setDbStatus('delayed', '班次取消', `ICE 123 顯示取消。更新時間 ${updatedAt}，請立即改查 DB Navigator。`, true);
+        return;
+      }
+
+      if (typeof delaySeconds === 'number' && delaySeconds > 59) {
+        const delayMinutes = Math.round(delaySeconds / 60);
+        setDbStatus('delayed', `Delay 約 ${delayMinutes} 分鐘`, `原訂 ${plannedTime} 出發，目前顯示 ${actualTime || '時間待確認'}。更新時間 ${updatedAt}。`);
+        return;
+      }
+
+      if (typeof delaySeconds === 'number') {
+        setDbStatus('on-time', '準時', `ICE 123 目前未顯示明顯 delay。原訂 ${plannedTime} 出發，更新時間 ${updatedAt}。`);
+        return;
+      }
+
+      setDbStatus('on-time', '尚無 delay 資訊', `目前查到 ICE 123 班次，但 API 未回傳 delay。原訂 ${plannedTime} 出發，更新時間 ${updatedAt}。`);
+      return;
+    } catch (error) {
+      continue;
+    }
+  }
+
+  setDbStatus('error', '暫時查不到', '德鐵即時資料目前無法取得。出發前請用 DB Navigator 或 bahn.de 再確認 ICE 123。', true);
+}
 
 // ─── Load saved edits on page start ───
 loadEdits();
