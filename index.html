@@ -136,7 +136,8 @@
     display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;
   }
   .ticket-link,
-  .db-refresh-btn {
+  .db-refresh-btn,
+  .flight-refresh-btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 5px;
     border-radius: 999px; border: 1px solid #c5cae9; background: #fff;
     color: #1a237e; font-family: inherit; font-size: 12px; font-weight: 700;
@@ -144,15 +145,24 @@
     transition: background 0.2s, border-color 0.2s, color 0.2s;
   }
   .ticket-link:hover,
-  .db-refresh-btn:hover { background: #eef2ff; border-color: #3949ab; }
-  .db-status-box {
+  .db-refresh-btn:hover,
+  .flight-refresh-btn:hover { background: #eef2ff; border-color: #3949ab; }
+  .seat-info {
+    margin-top: 7px; padding: 6px 9px; border-radius: 7px;
+    background: #fff8e1; color: #5d4037; font-size: 12px; font-weight: 700;
+    display: inline-block;
+  }
+  .db-status-box,
+  .flight-status-box {
     margin-top: 9px; padding: 10px 12px; border: 1px solid #d8dcef;
     border-radius: 8px; background: #fbfcff;
   }
-  .db-status-head {
+  .db-status-head,
+  .flight-status-head {
     display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
   }
-  .db-status-pill {
+  .db-status-pill,
+  .flight-status-pill {
     display: inline-flex; align-items: center; border-radius: 999px;
     padding: 4px 10px; font-size: 12px; font-weight: 700;
     color: #5f6368; background: #f1f3f4;
@@ -161,8 +171,11 @@
   .db-status-pill.delayed { color: #b71c1c; background: #ffebee; }
   .db-status-pill.loading { color: #1a237e; background: #e8eaf6; }
   .db-status-pill.error { color: #5d4037; background: #fff3e0; }
-  .db-status-detail { color: #555; font-size: 12px; margin-top: 7px; }
-  .db-status-detail a { color: #1a237e; font-weight: 700; }
+  .flight-status-pill.ready { color: #1a237e; background: #e8eaf6; }
+  .db-status-detail,
+  .flight-status-detail { color: #555; font-size: 12px; margin-top: 7px; }
+  .db-status-detail a,
+  .flight-status-detail a { color: #1a237e; font-weight: 700; }
 
   /* ── Photo gallery ── */
   .photo-grid {
@@ -415,7 +428,9 @@
   <div class="ticket-row" aria-label="火車票連結">
     <a class="ticket-link" href="train-ticket-arnhem-frankfurt-1.pdf" target="_blank" rel="noopener">🎫 火車票</a>
     <a class="ticket-link" href="train-ticket-arnhem-frankfurt-2.pdf" target="_blank" rel="noopener">💺 座位資訊</a>
+    <a class="ticket-link" href="https://int.bahn.de/en/buchung/start#?SO=Arnhem%20Centraal&amp;ZO=Frankfurt%28M%29%20Flughafen%20Fernbf&amp;HD=2026-06-23T11:34:00&amp;D=true" target="_blank" rel="noopener">🔎 DB 查詢</a>
   </div>
+  <div class="seat-info">座位：Coach 38 ｜ Seat 53、55、56 ｜ Non-smoking ｜ 3 middle</div>
   <div class="db-status-box" aria-live="polite">
     <div class="db-status-head">
       <span id="dbStatusPill" class="db-status-pill">德鐵狀態尚未更新</span>
@@ -433,7 +448,21 @@
 <li class="done">
 <span class="tl-time" contenteditable="false" data-edit-key="tl-time-7">16:40 → 18:00</span>
 <div class="tl-title" contenteditable="false" data-edit-key="tl-title-7">✈️ LH254：Frankfurt (FRA) → Milano Malpensa (MXP)</div>
-<div class="tl-note" contenteditable="false" data-edit-key="tl-note-7">飛行 1h 20m ｜ 抵達後接續義大利行程</div>
+<div class="tl-note" contenteditable="false" data-edit-key="tl-note-7">
+  飛行 1h 20m ｜ 抵達後接續義大利行程
+  <div class="ticket-row" aria-label="航班狀態連結">
+    <a class="ticket-link" href="https://www.lufthansa.com/us/en/timetable-and-flight-status" target="_blank" rel="noopener">✈️ Lufthansa 官方狀態</a>
+    <a class="ticket-link" href="https://www.flightaware.com/live/flight/DLH254" target="_blank" rel="noopener">📡 FlightAware 追蹤</a>
+    <a class="ticket-link" href="https://www.flightstats.com/v2/flight-tracker/LH/254" target="_blank" rel="noopener">🔎 FlightStats 查詢</a>
+  </div>
+  <div class="flight-status-box" aria-live="polite">
+    <div class="flight-status-head">
+      <span id="flightStatusPill" class="flight-status-pill ready">航班狀態待確認</span>
+      <button class="flight-refresh-btn" type="button" onclick="refreshFlightStatus()">↻ 重新開啟航班追蹤</button>
+    </div>
+    <div id="flightStatusDetail" class="flight-status-detail">建議優先確認 Lufthansa 官方狀態，並用 FlightAware / FlightStats 交叉確認 gate、delay 與抵達時間。</div>
+  </div>
+</div>
 </li>
 </ul>
 </div>
@@ -777,8 +806,8 @@ function showTab(id, btn) {
 let editMode = false;
 const deletedCards = {};
 const STORAGE_KEY = 'liftpv_briefing_v1';
-const SITE_CONTENT_VERSION = 2;
-const PROTECTED_CONTENT_KEYS = new Set(['tl-title-5', 'tl-note-5']);
+const SITE_CONTENT_VERSION = 3;
+const PROTECTED_CONTENT_KEYS = new Set(['tl-title-5', 'tl-note-5', 'tl-note-7']);
 
 function saveEdits() {
   const data = { version: SITE_CONTENT_VERSION, fields: {}, deleted: [], addedCards: {} };
@@ -993,12 +1022,20 @@ const DB_STATUS_CONFIG = {
   from: '8400058',
   to: '8070003',
   departure: '2026-06-23T11:20:00+02:00',
+  searchUrl: 'https://int.bahn.de/en/buchung/start#?SO=Arnhem%20Centraal&ZO=Frankfurt%28M%29%20Flughafen%20Fernbf&HD=2026-06-23T11:34:00&D=true',
   apiBases: [
     'https://v6.db.transport.rest',
     'https://v5.db.transport.rest',
     'https://v5.db.api.bahn.guru'
   ],
-  fallbackUrl: 'https://int.bahn.de/en'
+  fallbackUrl: 'https://int.bahn.de/en/buchung/start#?SO=Arnhem%20Centraal&ZO=Frankfurt%28M%29%20Flughafen%20Fernbf&HD=2026-06-23T11:34:00&D=true'
+};
+
+const FLIGHT_STATUS_CONFIG = {
+  flightNo: 'LH254',
+  flightAwareUrl: 'https://www.flightaware.com/live/flight/DLH254',
+  flightStatsUrl: 'https://www.flightstats.com/v2/flight-tracker/LH/254',
+  lufthansaUrl: 'https://www.lufthansa.com/us/en/timetable-and-flight-status'
 };
 
 function setDbStatus(state, label, detail, includeFallbackLink = false) {
@@ -1019,6 +1056,16 @@ function setDbStatus(state, label, detail, includeFallbackLink = false) {
     detailEl.append(' ');
     detailEl.appendChild(link);
   }
+}
+
+function getLocalTimeStamp() {
+  return new Intl.DateTimeFormat('zh-TW', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+    timeZone: 'Europe/Amsterdam'
+  }).format(new Date());
 }
 
 function formatTime(value) {
@@ -1086,13 +1133,7 @@ async function refreshDbStatus() {
       const delaySeconds = getDelaySeconds(leg);
       const plannedTime = formatTime(leg.plannedDeparture || leg.scheduledDeparture || '2026-06-23T11:34:00+02:00');
       const actualTime = formatTime(leg.departure);
-      const updatedAt = new Intl.DateTimeFormat('zh-TW', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false,
-        timeZone: 'Europe/Amsterdam'
-      }).format(new Date());
+      const updatedAt = getLocalTimeStamp();
 
       if (leg.cancelled) {
         setDbStatus('delayed', '班次取消', `ICE 123 顯示取消。更新時間 ${updatedAt}，請立即改查 DB Navigator。`, true);
@@ -1118,6 +1159,27 @@ async function refreshDbStatus() {
   }
 
   setDbStatus('error', '暫時查不到', '德鐵即時資料目前無法取得。出發前請用 DB Navigator 或 bahn.de 再確認 ICE 123。', true);
+}
+
+function refreshFlightStatus() {
+  const pill = document.getElementById('flightStatusPill');
+  const detailEl = document.getElementById('flightStatusDetail');
+  if (!pill || !detailEl) return;
+
+  const updatedAt = getLocalTimeStamp();
+  pill.className = 'flight-status-pill ready';
+  pill.textContent = '已開啟 LH254 追蹤';
+  detailEl.innerHTML = '';
+  detailEl.append(`已於 ${updatedAt} 開啟 FlightAware 追蹤頁。請同步確認 Lufthansa 官方狀態與機場螢幕。`);
+
+  const statsLink = document.createElement('a');
+  statsLink.href = FLIGHT_STATUS_CONFIG.flightStatsUrl;
+  statsLink.target = '_blank';
+  statsLink.rel = 'noopener';
+  statsLink.textContent = ' FlightStats 備援查詢';
+  detailEl.appendChild(statsLink);
+
+  window.open(FLIGHT_STATUS_CONFIG.flightAwareUrl, '_blank', 'noopener');
 }
 
 // ─── Load saved edits on page start ───
