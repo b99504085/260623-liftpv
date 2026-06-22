@@ -162,8 +162,9 @@
   }
   .person-photo {
     width: 80px; height: 80px; object-fit: contain;
-    display: block; margin-bottom: 8px;
+    display: block; margin-bottom: 8px; cursor: zoom-in;
   }
+  .person-photo:hover { filter: brightness(0.96); }
   .person-card.vip .person-photo { border-color: #ffca28; }
   .person-card.our .person-photo { border-color: #66bb6a; }
   .person-card.vip { background: #fff8e1; border-color: #ffca28; }
@@ -928,6 +929,13 @@ function openLightbox(src) {
 function closeLightbox() {
   document.getElementById('lightbox').classList.remove('show');
 }
+document.querySelectorAll('.person-photo').forEach(img => {
+  img.title = '點擊放大照片';
+  img.addEventListener('click', event => {
+    event.stopPropagation();
+    openLightbox(img.currentSrc || img.src);
+  });
+});
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
 
 // ─── Load saved edits on page start ───
